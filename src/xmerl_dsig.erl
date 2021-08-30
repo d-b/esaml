@@ -246,6 +246,13 @@ signature_props(rsa_sha256) ->
     HashFunction = sha256,
     DigestMethod = "http://www.w3.org/2001/04/xmlenc#sha256",
     Url = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+    {HashFunction, DigestMethod, Url};
+signature_props("http://www.w3.org/2001/04/xmldsig-more#rsa-sha512") ->
+    signature_props(rsa_sha512);
+signature_props(rsa_sha512) ->
+    HashFunction = sha512,
+    DigestMethod = "http://www.w3.org/2001/04/xmlenc#sha512",
+    Url = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha512",
     {HashFunction, DigestMethod, Url}.
 
 -ifdef(TEST).
