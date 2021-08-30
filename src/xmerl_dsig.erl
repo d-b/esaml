@@ -166,10 +166,12 @@ verify(Element, Fingerprints) ->
         {"ec", 'http://www.w3.org/2001/10/xml-exc-c14n#'}],
 
     [#xmlAttribute{value = SignatureMethodAlgorithm}] = xmerl_xpath:string("ds:Signature/ds:SignedInfo/ds:SignatureMethod/@Algorithm", Element, [{namespace, DsNs}]),
-    {HashFunction, _, _} = signature_props(SignatureMethodAlgorithm),
+    SignatureHashFunction= signature_hash_function(SignatureMethodAlgorithm),
+
+    [#xmlAttribute{value = DigestMethodAlgorithm}] = xmerl_xpath:string("ds:Signature/ds:SignedInfo/ds:Reference/ds:DigestMethod/@Algorithm", Element, [{namespace, DsNs}]),
+    DigestHashFunction = digest_hash_function(DigestMethodAlgorithm),
 
     [#xmlAttribute{value = "http://www.w3.org/2001/10/xml-exc-c14n#"}] = xmerl_xpath:string("ds:Signature/ds:SignedInfo/ds:CanonicalizationMethod/@Algorithm", Element, [{namespace, DsNs}]),
-    [#xmlAttribute{value = SignatureMethodAlgorithm}] = xmerl_xpath:string("ds:Signature/ds:SignedInfo/ds:SignatureMethod/@Algorithm", Element, [{namespace, DsNs}]),
     [C14nTx = #xmlElement{}] = xmerl_xpath:string("ds:Signature/ds:SignedInfo/ds:Reference/ds:Transforms/ds:Transform[@Algorithm='http://www.w3.org/2001/10/xml-exc-c14n#']", Element, [{namespace, DsNs}]),
     InclNs = case xmerl_xpath:string("ec:InclusiveNamespaces/@PrefixList", C14nTx, [{namespace, DsNs}]) of
         [] -> [];
@@ -178,7 +180,7 @@ verify(Element, Fingerprints) ->
 
     CanonXml = xmerl_c14n:c14n(strip(Element), false, InclNs),
     CanonXmlUtf8 = unicode:characters_to_binary(CanonXml, unicode, utf8),
-    CanonSha = crypto:hash(HashFunction, CanonXmlUtf8),
+    CanonSha = crypto:hash(DigestHashFunction, CanonXmlUtf8),
 
     [#xmlText{value = Sha64}] = xmerl_xpath:string("ds:Signature/ds:SignedInfo/ds:Reference/ds:DigestValue/text()", Element, [{namespace, DsNs}]),
     CanonSha2 = base64:decode(Sha64),
@@ -206,7 +208,7 @@ verify(Element, Fingerprints) ->
         end,
         Key = public_key:pem_entry_decode({'RSAPublicKey', KeyBin, not_encrypted}),
 
-        case public_key:verify(Data, HashFunction, Sig, Key) of
+        case public_key:verify(Data, SignatureHashFunction, Sig, Key) of
             true ->
                 case Fingerprints of
                     any ->
@@ -246,14 +248,17 @@ signature_props(rsa_sha256) ->
     HashFunction = sha256,
     DigestMethod = "http://www.w3.org/2001/04/xmlenc#sha256",
     Url = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
-    {HashFunction, DigestMethod, Url};
-signature_props("http://www.w3.org/2001/04/xmldsig-more#rsa-sha512") ->
-    signature_props(rsa_sha512);
-signature_props(rsa_sha512) ->
-    HashFunction = sha512,
-    DigestMethod = "http://www.w3.org/2001/04/xmlenc#sha512",
-    Url = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha512",
     {HashFunction, DigestMethod, Url}.
+
+-spec signature_hash_function(string()) -> HashFunction.
+signature_hash_function("http://www.w3.org/2000/09/xmldsig#rsa-sha1") -> sha;
+signature_hash_function("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256") -> sha256;
+signature_hash_function("http://www.w3.org/2001/04/xmldsig-more#rsa-sha512") -> sha512.
+
+-spec digest_hash_function(string()) -> DigestFunction.
+digest_hash_function("http://www.w3.org/2000/09/xmldsig#sha1") -> sha;
+digest_hash_function("http://www.w3.org/2001/04/xmlenc#sha256") -> sha256;
+digest_hash_function("http://www.w3.org/2001/04/xmlenc#sha512") -> sha512.
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
